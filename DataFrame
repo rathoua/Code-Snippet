@@ -1,0 +1,811 @@
+
+Dataframe
+
+
+==> How to make 1st row as a header in CSV file while reading from dataframe
+    val df1=sqlContext.read.format("csv").option("header","true").load("hdfs://nameservice1/user/AR459494/SparkTestData/Batsman_Data.csv")
+	
+==> Order to check the datatype of column for providing the Schema.
+    The code implies the following order of type inference (with the first types being checked against first):
+
+    NullType
+    IntegerType
+    LongType
+    DecimalType
+    DoubleType
+    TimestampType
+    BooleanType
+    StringType
+	
+	
+==> For providing schema through inferSchema.
+	val df1=sqlContext.read.format("csv").option("header","true").option("inferSchema","true").load("hdfs://nameservice1/user/AR459494/SparkTestData/Batsman_Data.csv")
+	
+	
+==> Provide Schema though StructType and StructField
+    case class StructType(fields: Array[StructField])
+
+    case class StructField(
+        name: String,
+        dataType: DataType,
+        nullable: Boolean = true,
+        metadata: Metadata = Metadata.empty)
+	 
+    val struct =
+    StructType(
+      StructField("a", IntegerType, true) ::
+      StructField("b", LongType, false) ::
+      StructField("c", BooleanType, false) :: Nil)
+	  
+    
+	
+    val sch = StructType(StructField("country",StringType)::StructField("description",StringType)::StructField("designation",StringType)::StructField("points",IntegerType)::StructField("price",FloatType)::StructField("province",FloatType)::StructField("region_1",StringType)::StructField("region_2",StringType)::StructField("taster_name",StringType)::StructField("taster_twitter_handle",StringType)::StructField("title",StringType)::StructField("variety",StringType)::StructField("winery",StringType)::Nil)
+
+    scala> val df = sqlContext.read.format("json").option("InferSchema","true").schema(sch).load("hdfs://nameservice1/user/AR459494/SparkTestData/json/data1.json")
+    df: org.apache.spark.sql.DataFrame = [country: string, description: string, designation: string, points: int, price: float, province: float, region_1: string, region_2: string, taster_name: string, taster_twitter_handle: string, title: string, variety: string, winery: string] 	
+    
+
+==> Operation with DataFrame
+	
+	df1.select("stage").distinct.show
+    df1.filter("Age >50 and Age <60").show()
+	
+	Replace the value of Survival . If YES then 1 otherwise 0
+	df1.withColumn("Survival",when(col("Survival")==="YES",1).otherwise(0)).show()
+	
+	Delete the particular row 
+	df1.filter("ID !=0")
+	
+	How to case statement in Dataframe( add column AgeGroup and apply case statement on it)
+	df.withColumn("AgeGroup",when(col("Age")>18 and col("Age")<25,"Teenage"),when(col("Age")>25 and col("Age")<45,"Mildage"),otherwise("Oldage")).show(10)
+	
+	withColumn create new column with that column is not present and if it is present then it modify that column
+	since "AgeGroup" column is not present then it will create new one and column with name "Survival" is present so it modify this column 
+	
+	How to rename the column
+    df.withColumnRenamed("Sex","Gender")     => change the name from sex to gender 
+
+    Change the datatype of Age column from int to float
+    df.withColumn("Age",col("Age").cast("Float")).show(5)
+
+    Add 10 to the value in age column
+    df.withColumn("NewAge",col("Age")+10).show()
+
+    Assgin one value to new column  ==> lit means literal
+    df.withColumn("NewColumn",lit("one value")).show()
+	
+	Group by sex column
+	df.groupBy("Sex").agg(count("*")).show => agg means what you want to select after the column Sex
+	
+	What are the most symptoms found at per state
+	df.select("State","Symptoms").groupBy("State","Symptoms").agg(count("*")). show ===> need to check
+	
+	To change the nullable to false for price 
+    scala> val df2= df1.withColumn("price",col("price").isNull)
+    df2: org.apache.spark.sql.DataFrame = [country: string, description: string, designation: string, points: string, price: boolean, province: string, region_1: string, region_2: string, taster_name: string, taster_twitter_handle: string, title: string, variety: string, winery: string]
+	
+    Register the temp table against the dataframe.
+	scala> df2.registerTempTable("abc")
+    scala> sqlContext.sql("select distinct country from abc").show
+	
+	
+==>  Calculate percentage in spark Dataframe
+     scala> val marksrdd =sc.textFile("hdfs://nameservice1/user/AR459494/SparkTestData/marks.csv")
+     marksrdd: org.apache.spark.rdd.RDD[String] = hdfs://nameservice1/user/AR459494/SparkTestData/marks.csv MapPartitionsRDD[26] at textFile at <console>:27
+	 
+	 scala> val markscsv = marksrdd.map(x => x.split(","))
+     markscsv: org.apache.spark.rdd.RDD[Array[String]] = MapPartitionsRDD[30] at map at <console>:29
+     
+     scala> case class studentMark(rollnum: Int,sub1: Float,sub2: Float,sub3: Float,sub4:Float,sub5: Float,sub6: Float)
+     defined class studentMark
+     
+     
+     scala> val marksSchema =markscsv.map(x =>(studentMark(x(0).toInt,x(1).toFloat,x(2).toFloat,x(3).toFloat,x(4).toFloat,x(5).toFloat,x(6).toFloat)))
+     marksrdd: org.apache.spark.rdd.RDD[studentMark] = MapPartitionsRDD[19] at map at <console>:33
+     
+     scala> val marksDF =marksSchema.toDF
+     marksDF: org.apache.spark.sql.DataFrame = [rollnum: int, sub1: float, sub2: float, sub3: float, sub4: float, sub5: float, sub6: float]
+     
+     scala> marksDF.withColumn("Percentage",(col("sub1")+col("sub2")+col("sub3")+col("sub4")+col("sub5")+col("sub6"))/6).show(5)
+     +-------+----+----+----+----+----+----+-----------------+
+     |rollnum|sub1|sub2|sub3|sub4|sub5|sub6|       Percentage|
+     +-------+----+----+----+----+----+----+-----------------+
+     |   1001|76.0|72.0|85.0|75.0|84.0|75.0|77.83333333333333|
+     |   1002|77.0|51.0|90.0|61.0|76.0|69.0|70.66666666666667|
+     |   1003|91.0|86.0|52.0|81.0|64.0|87.0|76.83333333333333|
+     |   1004|71.0|82.0|59.0|96.0|82.0|73.0|77.16666666666667|
+     |   1005|97.0|52.0|72.0|49.0|85.0|64.0|69.83333333333333|
+     +-------+----+----+----+----+----+----+-----------------+
+     only showing top 5 rows	 
+	 
+==> Load hive table data into spark using Scala
+    scala> val hivetable = sqlContext.sql("select * from HAASBEA0401_R0050.demand_llums_pon_detail limit 2")
+
+
+==> You have two table named as A and B. and you want to perform all types of join in spark using scala	
+    scala> val a = sqlContext.sql("select * from HAASBEA0401_R0050.z_ar_bat_data limit 5")
+    a: org.apache.spark.sql.DataFrame = [bat1: string, runs: int, bf: int, sr: double, fours: int, sixs: int, opposition: string, ground: string, date: string, match_id: string, batsman: string, player_id: int]
+	
+	scala> val b = sqlContext.sql("select * from HAASBEA0401_R0050.z_ar_bol_data limit 5")
+    b: org.apache.spark.sql.DataFrame = [overs: double, mdns: int, runs: int, wkts: int, econ: double, ave: double, sr: double, opposition: string, ground: string, start_date: string, match_id: string, bowler: string, player_id: int]
+
+	Inner Join 
+    scala> val inner_df =a.join(b,a("player_id")===b("player_id"))
+    inner_df: org.apache.spark.sql.DataFrame = [bat1: string, runs: int, bf: int, sr: double, fours: int, sixs: int, opposition: string, ground: string, date: string, match_id: string, batsman: string, player_id: int, overs: double, mdns: int, runs: int, wkts: int, econ: double, ave: double, sr: double, opposition: string, ground: string, start_date: string, match_id: string, bowler: string, player_id: int]
+	
+	Left Join
+	val inner_df =a.join(b,a("player_id")===b("player_id"),"left")
+	
+	Right Join 
+	scala> val right_df =a.join(b,a("player_id")===b("player_id"),"right")
+	
+	Full Join 
+	scala> val right_df =a.join(b,a("player_id")===b("player_id"),"full")
+	
+	Select fields from the inner_df
+	scala> inner_df.select("bat1","batsman","bowler").show()
+    +----+-------------+------+
+    |bat1|      batsman|bowler|
+    +----+-------------+------+
+    | DNB|Hardik Pandya|  null|
+    |  20|Hardik Pandya|  null|
+    | DNB|Hardik Pandya|  null|
+    | DNB|Hardik Pandya|  null|
+    |   0|Hardik Pandya|  null|
+    +----+-------------+------+	
+	
+==> Load the table from hive by using Spark1.6
+    scala> val abc =sqlContext.table("HAASBEA0401_R0050.z_ar_bat_data")
+    abc: org.apache.spark.sql.DataFrame = [bat1: string, runs: int, bf: int, sr: double, fours: int, sixs: int, opposition: string, ground: string, date: string, match_id: string, batsman: string, player_id: int]
+
+==> Calcluate rank who score highest run in ODI
+    import org.apache.spark.sql.expressions.Window
+    import org.apache.spark.sql.functions.rank
+	
+    scala> val rank = abc.withColumn("ranks",row_number().over(Window.orderBy($"runs".desc)))
+    rank: org.apache.spark.sql.DataFrame = [bat1: string, runs: int, bf: int, sr: double, fours: int, sixs: int, opposition: string, ground: string, date: string, match_id: string, batsman: string, player_id: int, ranks: int]
+
+    scala> rank.show(5)
+    19/12/19 08:16:25 WARN execution.Window: No Partition Defined for Window operation! Moving all data to a single partition, this can cause serious performance degradation.
+    +----+----+---+------+-----+----+-------------+----------+---------+----------+--------------+---------+-----+
+    |bat1|runs| bf|    sr|fours|sixs|   opposition|    ground|     date|  match_id|       batsman|player_id|ranks|
+    +----+----+---+------+-----+----+-------------+----------+---------+----------+--------------+---------+-----+
+    | 264| 264|173| 152.6|   33|   9|  v Sri Lanka|   Kolkata|13-Nov-14|ODI # 3544| Rohit Sharma |    34102|    1|
+    |237*| 237|163|145.39|   24|  11|v West Indies|Wellington|21-Mar-15|ODI # 3643|Martin Guptill|   226492|    2|
+    | 215| 215|147|146.25|   10|  16|   v Zimbabwe|  Canberra|24-Feb-15|ODI # 3612|  Chris Gayle |    51880|    3|
+    |210*| 210|156|134.61|   24|   5|   v Zimbabwe|  Bulawayo|20-Jul-18|ODI # 4020|  Fakhar Zaman|   512191|    4|
+    | 209| 209|158|132.27|   12|  16|  v Australia| Bengaluru|02-Nov-13|ODI # 3428| Rohit Sharma |    34102|    5|
+    +----+----+---+------+-----+----+-------------+----------+---------+----------+--------------+---------+-----+
+	
+    We can also use rank function in place of row_number.
+	we can use partition by function also
+
+
+==> Save dataframe into hive table
+    scala> val spark_df = sqlContext.sql("select runs,fours,sixs,batsman from HAASBEA0401_R0050.z_ar_bat_data order by runs desc")
+    spark_df: org.apache.spark.sql.DataFrame = [runs: int, fours: int, sixs: int, batsman: string]
+    
+    scala> spark_df.show(10)
+    +----+-----+----+---------------+
+    |runs|fours|sixs|        batsman|
+    +----+-----+----+---------------+
+    | 264|   33|   9|  Rohit Sharma |
+    | 237|   24|  11| Martin Guptill|
+    | 215|   10|  16|   Chris Gayle |
+    | 210|   24|   5|   Fakhar Zaman|
+    | 209|   12|  16|  Rohit Sharma |
+    | 208|   13|  12|  Rohit Sharma |
+    | 189|   19|   2| Martin Guptill|
+    | 185|   16|   3|Faf du Plessis |
+    | 183|   22|   1|   Virat Kohli |
+    | 183|   15|  10|      MS Dhoni |
+    +----+-----+----+---------------+
+    only showing top 10 rows
+    
+    
+    scala> spark_df.write.saveAsTable("HAASBEA0401_R0050.z_ar_top_bat")
+
+
+==> We can create a temp table and execute the query on the table. Table name is case sensitive. It table name should be the same in the query as it has been created.
+    scala> val df1 = sqlContext.table("HAASBEA0401_R0050.demand_llums_civils_detail")
+    df1: org.apache.spark.sql.DataFrame = [pon_project_id: int, serving_code_1141: string, activity_type: int, task_id: int, activity_id: int, mdfid: string, cab_number: string, reference: string, equipment_id: string, rec_insert_dt: string]
+    
+    scala> df1.registerTempTable("abc")
+    
+    scala> sqlContext.sql("select * from abc limit 2").show()
+    +--------------+-----------------+-------------+-------+-----------+------+----------+---------+------------+-------------+
+    |pon_project_id|serving_code_1141|activity_type|task_id|activity_id| mdfid|cab_number|reference|equipment_id|rec_insert_dt|
+    +--------------+-----------------+-------------+-------+-----------+------+----------+---------+------------+-------------+
+    |         66814|               FA|            2| 205361|       3315|WWFALM|        24|     null|        null|   2019-12-23|
+    |         66938|               TO|            1| 183685|         35|WWTRUR|         5|sa2333333|     dgsdgfs|   2019-12-23|
+    +--------------+-----------------+-------------+-------+-----------+------+----------+---------+------------+-------------+
+	
+==> RDD to DF using case class
+    scala> val emp_detail = sc.textFile("hdfs://nameservice1/user/AR459494/SparkTestData/emp_data.txt")
+    emp_detail: org.apache.spark.rdd.RDD[String] = hdfs://nameservice1/user/AR459494/SparkTestData/emp_data.txt MapPartitionsRDD[48] at textFile at <console>:34
+
+	scala> val header = emp_detail.take(1)(0)
+    header: String = empno,ename,designation,manager,hire_date,sal,deptno
+
+	scala> val emp_rdd1 = emp_detail.filter(x => x!= header)
+    emp_rdd1: org.apache.spark.rdd.RDD[String] = MapPartitionsRDD[49] at filter at <console>:38
+
+    scala> case class emp_schema(empno:String,ename:String,designation:String,manager:String,hire_date:String,sal:String,deptno:String)
+    defined class emp_schema
+    
+    scala> val emp_rdd2 = emp_rdd1.map{a => val x =a.split(",")
+         | emp_schema(x(0),x(1),x(2),x(3),x(4),x(5),x(6))
+         | }
+    emp_rdd2: org.apache.spark.rdd.RDD[emp_schema] = MapPartitionsRDD[50] at map at <console>:42
+	
+	scala> val emp_df =emp_rdd2.toDF()
+    emp_df: org.apache.spark.sql.DataFrame = [empno: string, ename: string, designation: string, manager: string, hire_date: string, sal: string, deptno: string]
+    
+    scala> emp_df.show(5)
+    +-----+------+-----------+-------+----------+-------+------+
+    |empno| ename|designation|manager| hire_date|    sal|deptno|
+    +-----+------+-----------+-------+----------+-------+------+
+    | 7369| SMITH|      CLERK|   9902|2010-12-17| 800.00|    20|
+    | 7499| ALLEN|   SALESMAN|   9698|2011-02-20|1600.00|    30|
+    | 7521|  WARD|   SALESMAN|   9698|2011-02-22|1250.00|    30|
+    | 9566| JONES|    MANAGER|   9839|2011-04-02|2975.00|    20|
+    | 7654|MARTIN|   SALESMAN|   9698|2011-09-28|1250.00|    30|
+    +-----+------+-----------+-------+----------+-------+------+
+
+
+
+==> Load data from MySQL in Spark using JDBC
+
+    import java.sql.{Connection, DriverManager, ResultSet}
+    import org.apache.spark.sql.functions._
+    import org.apache.spark.sql.SQLContext
+    import org.apache.spark.{SparkConf, SparkContext}
+    import org.apache.spark.sql.hive.HiveContext
+    object ReadDataFromJdbc {
+      def main(args: Array[String]): Unit = {
+        val sourceTable = args(0)
+        val targetTable = args(1)
+        // Spark Configuration set up
+        val config = new SparkConf().setAppName("Full Data Load " + sourceTable)
+        config.set("spark.driver.allowMultipleContexts","true")
+        try {
+          print("Started.......")
+          // JDBC connection details
+          val driver = "com.mysql.jdbc.Driver"
+          val url = "jdbc:mysql://localhost:3306/bdp"
+          val user = "root"
+          val pass = "Password"
+          // JDBC Connection and load table in Dataframe
+          val sourceDf = spark.read.format("jdbc")
+            .option("driver", driver)
+            .option("url", url)
+            .option("dbtable", sourceTable)
+            .option("user", user)
+            .option("password", pass)
+            .load()
+          // Read data from Dataframe
+          sourceDf.show()
+        } catch {
+          case e : Throwable => println("Connectivity Failed for Table ", e)
+        }
+      }
+    }
+   
+
+==> There are 50 columns in one spark data frame say df.it is needed to cast all the columns into string
+     
+    scala> df2.printSchema()
+    root
+     |-- country: string (nullable = true)
+     |-- description: string (nullable = true)
+     |-- designation: string (nullable = true)
+     |-- points: integer (nullable = true)
+     |-- price: boolean (nullable = false)
+     |-- province: float (nullable = true)
+     |-- region_1: string (nullable = true)
+     |-- region_2: string (nullable = true)
+     |-- taster_name: string (nullable = true)
+     |-- taster_twitter_handle: string (nullable = true)
+     |-- title: string (nullable = true)
+     |-- variety: string (nullable = true)
+     |-- winery: string (nullable = true)
+	 
+	 scala> val cast_df2 =df2.columns.map(x=> col(x).cast("String"))
+     cast_df2: Array[org.apache.spark.sql.Column] = Array(cast(country as string), cast(description as string), cast(designation as string), cast(points as string), cast(price as string), cast(province as string), cast(region_1 as string), cast(region_2 as string), cast(taster_name as string), cast(taster_twitter_handle as string), cast(title as string), cast(variety as string), cast(winery as string))
+     
+     scala> val cast_df3 =df2.select(cast_df2:_*)      follow this method with `_' if you want to treat it as a partially applied function
+     cast_df3: org.apache.spark.sql.DataFrame = [country: string, description: string, designation: string, points: string, price: string, province: string, region_1: string, region_2: string, taster_name: string, taster_twitter_handle: string, title: string, variety: string, winery: string]
+
+	 
+==> UDFs -User-Defined Functions	 
+     scala> import org.apache.spark.sql.functions.udf
+     import org.apache.spark.sql.functions.udf
+	 
+	scala> val batsman =sqlContext.sql("Select * from HAASBEA0401_R0050.z_ar_bat_data where runs >100 limit 20")
+    batsman: org.apache.spark.sql.DataFrame = [bat1: string, runs: int, bf: int, sr: double, fours: int, sixs: int, opposition: string, ground: string, date: string, match_id: string, batsman: string, player_id: int]
+    
+    scala> batsman.show(5)
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+
+    |bat1|runs| bf|    sr|fours|sixs|  opposition|       ground|     date|  match_id|   batsman|player_id|
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+
+    | 148| 148|122|121.31|   15|   4| v Sri Lanka|     Bulawayo|23-Nov-16|ODI # 3808|Evin Lewis|   431901|
+    |176*| 176|130|135.38|   17|   7|   v England|     The Oval|27-Sep-17|ODI # 3916|Evin Lewis|   431901|
+    | 101| 101|120| 84.16|    4|   4|  v Zimbabwe|     Bulawayo|19-Nov-16|ODI # 3806| Shai Hope|   581379|
+    |123*| 123|134| 91.79|   10|   3|     v India|Visakhapatnam|24-Oct-18|ODI # 4059| Shai Hope|   581379|
+    |146*| 146|144|101.38|   12|   3|v Bangladesh|        Dhaka|11-Dec-18|ODI # 4072| Shai Hope|   581379|
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+
+    only showing top 5 rows
+    
+    
+    scala> val splithash:String => String = _.split("#")(1)
+    splithash: String => String = <function1>
+    
+    scala> val udfhash =udf(splithash)
+    udfhash: org.apache.spark.sql.UserDefinedFunction = UserDefinedFunction(<function1>,StringType,List(StringType))
+	
+	scala> batsman.withColumn("match_id",udfhash('match_id)).show(5)
+    +----+----+---+------+-----+----+------------+-------------+---------+--------+----------+---------+
+    |bat1|runs| bf|    sr|fours|sixs|  opposition|       ground|     date|match_id|   batsman|player_id|
+    +----+----+---+------+-----+----+------------+-------------+---------+--------+----------+---------+
+    | 148| 148|122|121.31|   15|   4| v Sri Lanka|     Bulawayo|23-Nov-16|    3808|Evin Lewis|   431901|
+    |176*| 176|130|135.38|   17|   7|   v England|     The Oval|27-Sep-17|    3916|Evin Lewis|   431901|
+    | 101| 101|120| 84.16|    4|   4|  v Zimbabwe|     Bulawayo|19-Nov-16|    3806| Shai Hope|   581379|
+    |123*| 123|134| 91.79|   10|   3|     v India|Visakhapatnam|24-Oct-18|    4059| Shai Hope|   581379|
+    |146*| 146|144|101.38|   12|   3|v Bangladesh|        Dhaka|11-Dec-18|    4072| Shai Hope|   581379|
+    +----+----+---+------+-----+----+------------+-------------+---------+--------+----------+---------+
+    only showing top 5 rows
+	
+==> Add current_date as a column with format 
+    scala> batsman.withColumn("UpdateDate",lit(current_date())).show(5)
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+----------+
+    |bat1|runs| bf|    sr|fours|sixs|  opposition|       ground|     date|  match_id|   batsman|player_id|UpdateDate|
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+----------+
+    | 148| 148|122|121.31|   15|   4| v Sri Lanka|     Bulawayo|23-Nov-16|ODI # 3808|Evin Lewis|   431901|2020-01-08|	
+
+	scala> batsman.withColumn("UpdateDate",lit(date_format(current_date(),"dd/MM/yyyy"))).show(5)
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+----------+
+    |bat1|runs| bf|    sr|fours|sixs|  opposition|       ground|     date|  match_id|   batsman|player_id|UpdateDate|
+    +----+----+---+------+-----+----+------------+-------------+---------+----------+----------+---------+----------+
+    | 148| 148|122|121.31|   15|   4| v Sri Lanka|     Bulawayo|23-Nov-16|ODI # 3808|Evin Lewis|   431901|08/01/2020|
+
+	
+	
+	import org.apache.spark.sql.functions._
+
+==========================================Take Prinout After this line============================================    
+
+==> Merge two Dataframe.
+	We can achieve in 4 ways:
+		1-withColumn,union
+		2-Define schema,union
+		3-Apply outer join
+		4-Automate the process
+		
+		scala> val df1= spark.read.option("header","true").csv("file:///d:/amit/file/input/csv/file1nozip.csv")
+        df1: org.apache.spark.sql.DataFrame = [FirstName: string, " ""LastName""": string ... 3 more fields]
+        
+        scala> df1.show()
+        +-----------------+---------------+--------------------+-----------+------------+
+        |        FirstName|" ""LastName"""|" ""StreetAddress"""|" ""City"""|" ""State"""|
+        +-----------------+---------------+--------------------+-----------+------------+
+        |             John|            Doe|   120 jefferson st.|  Riverside|          NJ|
+        |             Jack|       McGinnis|        220 hobo Av.|      Phila|          PA|
+        |"John ""Da Man"""|         Repici|   120 Jefferson St.|  Riverside|          NJ|
+        |          Stephen|          Tyler|"7452 Terrace ""A...|   SomeTown|          SD|
+        +-----------------+---------------+--------------------+-----------+------------+
+
+		scala> df2.show()
+        +------------------+---------------+--------------------+-------------------+------------+--------------+  
+        |         FirstName|" ""LastName"""|" ""StreetAddress"""|        " ""City"""|" ""State"""|" ""ZipCode"""|   
+        +------------------+---------------+--------------------+-------------------+------------+--------------+   
+        |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|         91234|   
+        |              null|       Blankman|                null|           SomeTown|          SD|           298|   
+        |"Joan ""the bone""|          Anne"|                 Jet|9th, at Terrace plc| Desert City|            CO|   
+        +------------------+---------------+--------------------+-------------------+------------+--------------+   
+
+        1-withColumn,union
+		df3.union(df2).show()
+		 df3.union(df2).show()
+        +------------------+---------------+--------------------+-------------------+------------+-------+
+        |         FirstName|" ""LastName"""|" ""StreetAddress"""|        " ""City"""|" ""State"""|ZipCode|
+        +------------------+---------------+--------------------+-------------------+------------+-------+
+        |              John|            Doe|   120 jefferson st.|          Riverside|          NJ|   null|
+        |              Jack|       McGinnis|        220 hobo Av.|              Phila|          PA|   null|
+        | "John ""Da Man"""|         Repici|   120 Jefferson St.|          Riverside|          NJ|   null|
+        |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|   null|
+        |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|  91234|
+        |              null|       Blankman|                null|           SomeTown|          SD|    298|
+        |"Joan ""the bone""|          Anne"|                 Jet|9th, at Terrace plc| Desert City|     CO|
+        +------------------+---------------+--------------------+-------------------+------------+-------+
+		
+		2-Define schema, union
+		scala> val schema= StructType( StructField("FirstName",StringType,true)::StructField("LastName",StringType,true)::StructField("StreetAddress",StringType,true)::StructField("City",StringType,true)::StructField("State",StringType,true)::StructField("ZipCode",StringType,true)::Nil)
+		schema: org.apache.spark.sql.types.StructType = StructType(StructField(FirstName,StringType,true), StructField(LastName,StringType,true), StructField(StreetAddress,StringType,true), StructField(City,StringType,true), StructField(State,StringType,true), StructField(ZipCode,StringType,true))
+		
+		scala> val df1 =spark.read.schema(schema).option("header","true").csv("file:///d:/amit/file/input/csv/file1nozip.csv")
+         df1: org.apache.spark.sql.DataFrame = [FirstName: string, LastName: string ... 4 more fields]
+         
+         scala> val df2 =spark.read.schema(schema).option("header","true").csv("file:///d:/amit/file/input/csv/file2.csv")
+         df2: org.apache.spark.sql.DataFrame = [FirstName: string, LastName: string ... 4 more fields]
+         
+         scala> df2.union(df1).show()
+         21/01/26 14:12:03 WARN CSVHeaderChecker: CSV header does not conform to the schema.
+          Header: FirstName, " ""LastName""", " ""StreetAddress""", " ""City""", " ""State""", " ""ZipCode"""
+          Schema: FirstName, LastName, StreetAddress, City, State, ZipCode
+         Expected: LastName but found: " ""LastName"""
+         CSV file: file:///d:/amit/file/input/csv/file2.csv
+         21/01/26 14:12:03 WARN CSVHeaderChecker: Number of column in CSV header is not equal to number of fields in the schema:
+          Header length: 5, schema size: 6
+         CSV file: file:///d:/amit/file/input/csv/file1nozip.csv
+         +------------------+--------+--------------------+-------------------+-----------+-------+
+         |         FirstName|LastName|       StreetAddress|               City|      State|ZipCode|
+         +------------------+--------+--------------------+-------------------+-----------+-------+
+         |           Stephen|   Tyler|"7452 Terrace ""A...|           SomeTown|         SD|  91234|
+         |              null|Blankman|                null|           SomeTown|         SD|    298|
+         |"Joan ""the bone""|   Anne"|                 Jet|9th, at Terrace plc|Desert City|     CO|
+         |              John|     Doe|   120 jefferson st.|          Riverside|         NJ|   null|
+         |              Jack|McGinnis|        220 hobo Av.|              Phila|         PA|   null|
+         | "John ""Da Man"""|  Repici|   120 Jefferson St.|          Riverside|         NJ|   null|
+         |           Stephen|   Tyler|"7452 Terrace ""A...|           SomeTown|         SD|   null|
+         +------------------+--------+--------------------+-------------------+-----------+-------+
+		 
+		 3- Aplly outer join
+		 scala> df1.join(df2,df1("FirstName","" ""LastName"""","" ""StreetAddress"""","" ""City"""","" ""State"""") === df2("FirstName","" ""LastName"""","" ""StreetAddress"""","" ""City"""","" ""State""""),"outer")
+		 
+		 4-Automate the process
+		 scala> var df1= spark.read.option("header","true").csv("file:///d:/amit/file/input/csv/file1nozip.csv")
+         df1: org.apache.spark.sql.DataFrame = [FirstName: string, " ""LastName""": string ... 3 more fields]
+         
+         scala> var df2= spark.read.option("header","true").csv("file:///d:/amit/file/input/csv/file2.csv")
+         df2: org.apache.spark.sql.DataFrame = [FirstName: string, " ""LastName""": string ... 4 more fields]
+         
+         scala> val diff1 = df1.columns.toList diff df2.columns.toList
+         diff1: List[String] = List()
+         
+         scala> val diff2 = df2.columns.toList diff df1.columns.toList
+         diff2: List[String] = List(" ""ZipCode""")
+         
+         scala> for (i <- diff2) { df1 =df1.withColumn(i,lit(null))}
+         
+         scala> for (i <- diff1) { df2 =df2.withColumn(i,lit(null))}
+         
+         scala> df1.show()
+         +-----------------+---------------+--------------------+-----------+------------+--------------+
+         |        FirstName|" ""LastName"""|" ""StreetAddress"""|" ""City"""|" ""State"""|" ""ZipCode"""|
+         +-----------------+---------------+--------------------+-----------+------------+--------------+
+         |             John|            Doe|   120 jefferson st.|  Riverside|          NJ|          null|
+         |             Jack|       McGinnis|        220 hobo Av.|      Phila|          PA|          null|
+         |"John ""Da Man"""|         Repici|   120 Jefferson St.|  Riverside|          NJ|          null|
+         |          Stephen|          Tyler|"7452 Terrace ""A...|   SomeTown|          SD|          null|
+         +-----------------+---------------+--------------------+-----------+------------+--------------+
+         
+         
+         scala> df2.show()
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+         |         FirstName|" ""LastName"""|" ""StreetAddress"""|        " ""City"""|" ""State"""|" ""ZipCode"""|
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+         |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|         91234|
+         |              null|       Blankman|                null|           SomeTown|          SD|           298|
+         |"Joan ""the bone""|          Anne"|                 Jet|9th, at Terrace plc| Desert City|            CO|
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+         
+         
+         scala> df1.union(df2)
+         res39: org.apache.spark.sql.Dataset[org.apache.spark.sql.Row] = [FirstName: string, " ""LastName""": string ... 4 more fields]
+         
+         scala> df1.union(df2).show()
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+         |         FirstName|" ""LastName"""|" ""StreetAddress"""|        " ""City"""|" ""State"""|" ""ZipCode"""|
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+         |              John|            Doe|   120 jefferson st.|          Riverside|          NJ|          null|
+         |              Jack|       McGinnis|        220 hobo Av.|              Phila|          PA|          null|
+         | "John ""Da Man"""|         Repici|   120 Jefferson St.|          Riverside|          NJ|          null|
+         |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|          null|
+         |           Stephen|          Tyler|"7452 Terrace ""A...|           SomeTown|          SD|         91234|
+         |              null|       Blankman|                null|           SomeTown|          SD|           298|
+         |"Joan ""the bone""|          Anne"|                 Jet|9th, at Terrace plc| Desert City|            CO|
+         +------------------+---------------+--------------------+-------------------+------------+--------------+
+		 
+==> How to file with Multi Delimiter
+		scala> val df2= spark.read.option("inferSchema","true").option("delimiter","~|").option("header","true").csv("file:///d:/amit/file/input/csv/file3.csv")
+		df2: org.apache.spark.sql.DataFrame = [name: string, age: int]	
+		
+		-- Another ways
+		scala> val df2= spark.read.textFile("file:///d:/amit/file/input/csv/file3.csv")
+        df2: org.apache.spark.sql.Dataset[String] = [value: string]
+        
+        scala> val df3 =df2.map(x => x.mkString.split("\\~\\|").mkString("\t"))
+        df3: org.apache.spark.sql.Dataset[String] = [value: string]
+        
+        scala> val df4 =spark.read.option("delimiter","\t").option("header","true").csv(df3)
+        df4: org.apache.spark.sql.DataFrame = [name: string, age: string]
+        
+        scala> df4.show()
+        +-------------+---+
+        |         name|age|
+        +-------------+---+
+        |     John,Doe| 30|
+        |Jack,McGinnis| 32|
+        |  John,Da Man| 28|
+        |Stephen,Tyler| 25|
+        +-------------+---+
+		
+==>	Modes in spark.read()
+			- Mode -- Permissive(By default) : load the data if there is bad record then replace with null values 
+			- Mode -- Failfast : throw an exception when found bad record
+			- Mode -- Dropmalformed : record should match with the schema otherwise it's a bad record and removed it 
+			
+==>	Explode : It make Array or map or StructType fields into single record	
+			scala> val df2= spark.read.option("header","true")csv("file:///d:/amit/file/input/csv/file4.csv")
+            df2: org.apache.spark.sql.DataFrame = [name: string, zip: string]
+            
+            scala> df2.show()
+            +-------+----------+
+            |   name|       zip|
+            +-------+----------+
+            |   John|(30,31,35)|
+            |   Jack|(32,45,67)|
+            |Stephen|(25,40,34)|
+            |   amit|      null|
+            +-------+----------+
+            
+            
+            scala> df2.printSchema()
+            root
+             |-- name: string (nullable = true)
+             |-- zip: string (nullable = true)
+            
+            
+            scala> val df3 =df2.withColumn("newZip",explode(col("zip")))
+            org.apache.spark.sql.AnalysisException: cannot resolve 'explode(`zip`)' due to data type mismatch: input to function explode should be array or map type, not string;
+			
+			scala> val df3 =df2.withColumn("newZip",explode(split(col("zip"),",")))
+            df3: org.apache.spark.sql.DataFrame = [name: string, zip: string ... 1 more field]
+            
+            scala> df3.show()
+            +-------+----------+------+
+            |   name|       zip|newZip|
+            +-------+----------+------+
+            |   John|(30,31,35)|   (30|
+            |   John|(30,31,35)|    31|
+            |   John|(30,31,35)|   35)|
+            |   Jack|(32,45,67)|   (32|
+            |   Jack|(32,45,67)|    45|
+            |   Jack|(32,45,67)|   67)|
+            |Stephen|(25,40,34)|   (25|
+            |Stephen|(25,40,34)|    40|
+            |Stephen|(25,40,34)|   34)|
+            +-------+----------+------+
+			
+		-- To include null value in explode
+			scala> val df3 =df2.withColumn("newZip",explode_outer(split(col("zip"),",")))
+            df3: org.apache.spark.sql.DataFrame = [name: string, zip: string ... 1 more field]
+            
+            scala> df3.show()
+            +-------+----------+------+
+            |   name|       zip|newZip|
+            +-------+----------+------+
+            |   John|(30,31,35)|   (30|
+            |   John|(30,31,35)|    31|
+            |   John|(30,31,35)|   35)|
+            |   Jack|(32,45,67)|   (32|
+            |   Jack|(32,45,67)|    45|
+            |   Jack|(32,45,67)|   67)|
+            |Stephen|(25,40,34)|   (25|
+            |Stephen|(25,40,34)|    40|
+            |Stephen|(25,40,34)|   34)|
+            |   amit|      null|  null|
+            +-------+----------+------+
+		-- to know the position of element in array after using explode, we use posexplode_outer or posexplode 
+			scala> val df3 =df2.select(col("*"),posexplode_outer(split(col("zip"),",")))
+            df3: org.apache.spark.sql.DataFrame = [name: string, zip: string ... 2 more fields]
+            
+            scala> df3.show()
+            +-------+----------+----+----+
+            |   name|       zip| pos| col|
+            +-------+----------+----+----+
+            |   John|(30,31,35)|   0| (30|
+            |   John|(30,31,35)|   1|  31|
+            |   John|(30,31,35)|   2| 35)|
+            |   Jack|(32,45,67)|   0| (32|
+            |   Jack|(32,45,67)|   1|  45|
+            |   Jack|(32,45,67)|   2| 67)|
+            |Stephen|(25,40,34)|   0| (25|
+            |Stephen|(25,40,34)|   1|  40|
+            |Stephen|(25,40,34)|   2| 34)|
+            |   amit|      null|null|null|
+            +-------+----------+----+----+
+			
+==> Data Skewness			
+
+==> Pivot function (Transpose)
+		scala> val df1 =spark.read.option("header","true").csv("file:///d:/amit/file/input/csv/file5.csv")
+         df1: org.apache.spark.sql.DataFrame = [Roll_No: string, Subject: string ... 1 more field]
+         
+         scala> df1.show()
+         +-------+-------+-----+
+         |Roll_No|Subject|Marks|
+         +-------+-------+-----+
+         |   1001|English|   85|
+         |   1001|Physics|   75|
+         |   1001|  Maths|   58|
+         |   1001|Science|   45|
+         |   1001|History|   88|
+         |   1002|English|   74|
+         |   1002|Physics|   79|
+         |   1002|  Maths|   85|
+         |   1002|Science|   56|
+         |   1002|History|   82|
+         +-------+-------+-----+
+         
+         
+         scala> df1.printSchema()
+         root
+          |-- Roll_No: string (nullable = true)
+          |-- Subject: string (nullable = true)
+          |-- Marks: string (nullable = true)
+         
+         
+         scala> val df1 =spark.read.option("header","true").option("inferSchema","true").csv("file:///d:/amit/file/input/csv/file5.csv")
+         df1: org.apache.spark.sql.DataFrame = [Roll_No: int, Subject: string ... 1 more field]
+         
+         scala> df1.printSchema()
+         root
+          |-- Roll_No: integer (nullable = true)
+          |-- Subject: string (nullable = true)
+          |-- Marks: integer (nullable = true)
+         
+         
+         scala> val df2=df1.groupBy("Roll_No").pivot("Subject").max("Marks")
+         df2: org.apache.spark.sql.DataFrame = [Roll_No: int, English: int ... 4 more fields]
+         
+         scala> df2.show()
+         +-------+-------+-------+-----+-------+-------+
+         |Roll_No|English|History|Maths|Physics|Science|
+         +-------+-------+-------+-----+-------+-------+
+         |   1002|     74|     82|   85|     79|     56|
+         |   1001|     85|     88|   58|     75|     45|
+         +-------+-------+-------+-----+-------+-------+
+         
+==>	Duplicate in Dataframe
+				By GroupBy
+				scala> df1.show()
+                    +-------+-------+-----+
+                    |Roll_No|Subject|Marks|
+                    +-------+-------+-----+
+                    |   1001|English|   85|
+                    |   1001|Physics|   75|
+                    |   1001|  Maths|   58|
+                    |   1001|Science|   45|
+                    |   1001|History|   88|
+                    |   1002|English|   74|
+                    |   1002|Physics|   79|
+                    |   1002|  Maths|   85|
+                    |   1002|Science|   56|
+                    |   1002|History|   82|
+                    +-------+-------+-----+
+					
+					scala> df1.groupBy("Roll_No","Subject","Marks").count().where("count == 1").drop("count")
+					res28: org.apache.spark.sql.DataFrame = [Roll_No: int, Subject: string ... 1 more field]
+					
+			By Window function
+				scala> import org.apache.spark.sql.expressions.Window
+                import org.apache.spark.sql.expressions.Window
+                
+                scala> import org.apache.spark.sql.functions
+                import org.apache.spark.sql.functions
+				scala> val df2 =df1.withColumn("Rank",row_number.over(Window.partitionBy("Roll_No").orderBy(col("Marks").desc)))
+				df2: org.apache.spark.sql.DataFrame = [Roll_No: int, Subject: string ... 2 more fields]
+                
+                scala> df2.show()
+                +-------+-------+-----+----+
+                |Roll_No|Subject|Marks|Rank|
+                +-------+-------+-----+----+
+                |   1002|  Maths|   85|   1|
+                |   1002|History|   82|   2|
+                |   1002|Physics|   79|   3|
+                |   1002|English|   74|   4|
+                |   1002|Science|   56|   5|
+                |   1001|History|   88|   1|
+                |   1001|English|   85|   2|
+                |   1001|Physics|   75|   3|
+                |   1001|  Maths|   58|   4|
+                |   1001|Science|   45|   5|
+                +-------+-------+-----+----+
+                
+                
+                scala> val df2 =df1.withColumn("Rank",row_number.over(Window.partitionBy("Roll_No").orderBy(col("Marks").desc))).where("Rank >1").drop("Rank")
+                df2: org.apache.spark.sql.DataFrame = [Roll_No: int, Subject: string ... 1 more field]
+                
+                scala> df2.show()
+                +-------+-------+-----+
+                |Roll_No|Subject|Marks|
+                +-------+-------+-----+
+                |   1002|History|   82|
+                |   1002|Physics|   79|
+                |   1002|English|   74|
+                |   1002|Science|   56|
+                |   1001|English|   85|
+                |   1001|Physics|   75|
+                |   1001|  Maths|   58|
+                |   1001|Science|   45|
+                +-------+-------+-----+
+				
+				We can use .dropDuplicates() to drop the duplicate record
+				scala> df2.select("Roll_No").dropDuplicates().show()
+                +-------+
+                |Roll_No|
+                +-------+
+                |   1002|
+                |   1001|
+                +-------+
+				
+==>  Deal with Ambiguous Column in Spark
+
+==>		Count of Each Partition in DF				
+		scala> df1.rdd.getNumPartitions
+        res88: Int = 1
+        
+        scala> val df2 =df1.repartition(4)
+        df2: org.apache.spark.sql.Dataset[org.apache.spark.sql.Row] = [Roll_No: string, Subject: string ... 1 more field]
+        
+        scala> df2.rdd.getNumPartitions
+        res89: Int = 4
+		scala> val df3=df2.withColumn("partitionId",spark_partition_id()).groupBy("partitionId").count()
+        df3: org.apache.spark.sql.DataFrame = [partitionId: int, count: bigint]
+        
+        scala> df3.show()
+        +-----------+-----+
+        |partitionId|count|
+        +-----------+-----+
+        |          1|    2|
+        |          3|    3|
+        |          2|    2|
+        |          0|    3|
+        +-----------+-----+
+		
+==> Increment Load in Sparksql
+		scala> val list1 =List((1,"abc"),(2,"cde"))
+        list1: List[(Int, String)] = List((1,abc), (2,cde))
+        
+        scala> val olddf =spark.createDataFrame(list1).toDF("id","value").withColumn("update_date",current_date() -1)
+        olddf: org.apache.spark.sql.DataFrame = [id: int, value: string ... 1 more field]
+        
+        scala> olddf.show()
+        +---+-----+-----------+
+        | id|value|update_date|
+        +---+-----+-----------+
+        |  1|  abc| 2021-01-30|
+        |  2|  cde| 2021-01-30|
+        +---+-----+-----------+
+        
+        
+        scala> val list2 =List((3,"jkl"),(2,"qwe"))
+        list2: List[(Int, String)] = List((3,jkl), (2,qwe))
+        
+        scala> val newdf =spark.createDataFrame(list2).toDF("id","value").withColumn("update_date",current_date())
+        newdf: org.apache.spark.sql.DataFrame = [id: int, value: string ... 1 more field]
+        
+        scala> newdf.show()
+        +---+-----+-----------+
+        | id|value|update_date|
+        +---+-----+-----------+
+        |  3|  jkl| 2021-01-31|
+        |  2|  qwe| 2021-01-31|
+        +---+-----+-----------+
+        
+        
+        scala> import org.apache.spark.sql.expressions.Window
+        import org.apache.spark.sql.expressions.Window
+        
+        scala> import org.apache.spark.sql.functions
+        import org.apache.spark.sql.functions
+        
+        scala> olddf.union(newdf).withColumn("rank",rank.over(Window.partitionBy("id").orderBy(col("update_date").desc))).filter("rank ==1").drop("rank").show()
+        +---+-----+-----------+
+        | id|value|update_date|
+        +---+-----+-----------+
+        |  1|  abc| 2021-01-30|
+        |  3|  jkl| 2021-01-31|
+        |  2|  qwe| 2021-01-31|
+        +---+-----+-----------+
